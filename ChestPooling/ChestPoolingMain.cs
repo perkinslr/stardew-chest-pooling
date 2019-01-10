@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -6,9 +6,10 @@ using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Locations;
 using StardewValley.Menus;
+using StardewValley.Network;
 using StardewValley.Objects;
 using Netcode;
-
+using Microsoft.Xna.Framework;
 
 //bugs while playing:
 /*
@@ -47,9 +48,7 @@ namespace ChestPooling
         *********/
         private void DebugLog(string theString)
         {
-#if DEBUG
             this.Monitor.Log(theString);
-#endif
         }
 
         private void DebugThing(object data, string descriptor = "")
@@ -64,45 +63,48 @@ namespace ChestPooling
             if (!Game1.hasLoadedGame || Game1.currentLocation == null)
                 return null;
 
+            Chest openChest = this.GetOpenChest();
+            
             List<Chest> chestList = new List<Chest>();
-
-            //this.Helper.Multiplayer.GetActiveLocations();
-            //get chests from normal buildings
-            foreach (GameLocation location in Game1.locations)
-            {
-                if(location == null) { break; }
-                //get chests
-                chestList.AddRange(location.Objects.Values.OfType<Chest>());
-
-                //get fridge
-                FarmHouse house = location as FarmHouse;
-                
-                if (house != null)
-                {
-                    Chest fridge = house.fridge.Value;
-                    if (fridge != null)
-                    {
-                        chestList.Add(fridge);
-                    }
-                }  
+            
+            
+            GameLocation location = Game1.currentLocation;
+            if (openChest==null || location ==null) {
+                return chestList;
             }
-
-            //get stuff inside build buildings
-            Farm farm = Game1.getFarm();
-            if (farm != null)
-            {
-                foreach (StardewValley.Buildings.Building building in farm.buildings)
-                {
-                    GameLocation indoors = building.indoors.Value;
-                    if (indoors != null)
-                        chestList.AddRange(indoors.Objects.Values.OfType<Chest>());
+            
+            OverlaidDictionary objects = location.objects;
+            foreach (KeyValuePair<Vector2, StardewValley.Object> pos_chest in objects.Pairs) {
+                Chest chest = pos_chest.Value as Chest;
+                if (chest!=null) {
+                    if (chest==openChest) {
+                        this.findChests(pos_chest.Key, chestList, objects);
+                        break;
+                    }
                 }
             }
-
-            chestList.RemoveAll(IsIgnored);
-
-
+            
+            
+            
             return chestList;
+        }
+        
+        private void findChests(Vector2 position, List<Chest> chests, OverlaidDictionary objects) {
+            if (!objects.ContainsKey(position)) {
+                return;
+            }
+            StardewValley.Object obj = objects[position];
+            Chest chest = obj as Chest;
+            if (chest!=null) {
+                if (chests.Contains(chest)) {
+                    return;
+                }
+                chests.Add(chest);
+                findChests(new Vector2(position.X+1, position.Y), chests, objects);
+                findChests(new Vector2(position.X-1, position.Y), chests, objects);
+                findChests(new Vector2(position.X, position.Y+1), chests, objects);
+                findChests(new Vector2(position.X, position.Y-1), chests, objects);
+            }
         }
 
         //chest filter predicate
